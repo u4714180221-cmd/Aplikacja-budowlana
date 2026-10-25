@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "../../lib/supabaseClient";
 
 const statusStyl = {
@@ -52,15 +53,17 @@ export default function Zlecenia() {
       <div className="p-4">
         {lista.length === 0 && <div className="text-sm text-muted">Brak zleceń.</div>}
         {lista.map(z => (
-          <div key={z.id} className="bg-white rounded-xl2 p-3.5 mb-2.5 flex justify-between items-center">
-            <div>
-              <div className="font-semibold text-sm">{z.nazwa}</div>
-              <div className="text-xs text-muted">{z.adres || "—"}</div>
+          <Link key={z.id} href={`/zlecenia/${z.id}`} className="block">
+            <div className="bg-white rounded-xl2 p-3.5 mb-2.5 flex justify-between items-center">
+              <div>
+                <div className="font-semibold text-sm">{z.nazwa}</div>
+                <div className="text-xs text-muted">{z.adres || "—"}</div>
+              </div>
+              <div className={`text-xs px-2.5 py-1 rounded-full font-semibold ${statusStyl[z.status] || statusStyl.szkic}`}>
+                {z.status.replace("_", " ")}
+              </div>
             </div>
-            <div className={`text-xs px-2.5 py-1 rounded-full font-semibold ${statusStyl[z.status] || statusStyl.szkic}`}>
-              {z.status.replace("_", " ")}
-            </div>
-          </div>
+          </Link>
         ))}
       </div>
     </div>
