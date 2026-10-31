@@ -24,6 +24,7 @@ create table zlecenia (
   status text not null default 'szkic' check (status in ('szkic', 'w_toku', 'wyslane', 'zatwierdzone', 'problem', 'zakonczone')),
   termin_start date,
   termin_koniec date,
+  parametry jsonb default '{}'::jsonb,   -- dane budynku z kalkulatora materiałowego
   utworzono timestamptz default now()
 );
 
