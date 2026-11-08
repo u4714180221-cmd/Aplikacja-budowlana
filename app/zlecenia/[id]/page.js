@@ -21,6 +21,14 @@ const wycenaStatusStyl = {
   odrzucona: "bg-status-redBg text-status-redFg",
 };
 
+const podwStatusNazwa = { ustalony: "Ustalony", w_trakcie: "W trakcie", odebrany: "Odebrany" };
+const podwStatusStyl = {
+  ustalony: "bg-status-grayBg text-status-grayFg",
+  w_trakcie: "bg-status-blueBg text-status-blueFg",
+  odebrany: "bg-status-greenBg text-status-greenFg",
+};
+const zl = (v) => (Number(v) || 0).toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " zł";
+
 export default function KartaZlecenia() {
   const { id } = useParams();
   const router = useRouter();
@@ -28,14 +36,44 @@ export default function KartaZlecenia() {
   const [wyceny, setWyceny] = useState([]);
   const [ladowanie, setLadowanie] = useState(true);
 
+  const [przypisania, setPrzypisania] = useState([]);
+  const [kontaktyPodw, setKontaktyPodw] = useState([]);
+  const [pokazDodaj, setPokazDodaj] = useState(false);
+  const [wybranyPodw, setWybranyPodw] = useState("");
+  const [robocizna, setRobocizna] = useState(0);
+  const [wersjaRob, setWersjaRob] = useState(null);
+  const [wyplacono, setWyplacono] = useState(0);
+
   async function pobierz() {
     const { data: z } = await supabase.from("zlecenia").select("*").eq("id", id).single();
     setZlecenie(z);
     const { data: w } = await supabase.from("wyceny").select("*").eq("zlecenie_id", id).order("wersja", { ascending: false });
     setWyceny(w || []);
+
+    // robocizna z najnowszej wyceny (to, co wyceniono klientowi)
+    if (w && w.length > 0) {
+      const { data: poz } = await supabase.from("wycena_pozycje").select("ilosc, cena_jednostkowa").eq("wycena_id", w[0].id).eq("typ", "robocizna");
+      setRobocizna((poz || []).reduce((s, p) => s + p.ilosc * p.cena_jednostkowa, 0));
+      setWersjaRob(w[0].wersja);
+    }
+
+    // podwykonawcy przypisani do zlecenia
+    const { data: pp } = await supabase.from("zlecenie_podwykonawcy").select("*, kontakty(nazwa)").eq("zlecenie_id", id);
+    setPrzypisania(pp || []);
+    let suma = 0;
+    if (pp && pp.length > 0) {
+      const r = await supabase.from("platnosci_podwykonawcow").select("kwota").in("przypisanie_id", pp.map(x => x.id));
+      if (!r.error) suma = (r.data || []).reduce((s, x) => s + Number(x.kwota), 0);
+    }
+    setWyplacono(suma);
     setLadowanie(false);
   }
-  useEffect(() => { if (id) pobierz(); }, [id]);
+  useEffect(() => {
+    if (!id) return;
+    pobierz();
+    supabase.from("kontakty").select("id, nazwa").eq("typ", "podwykonawca").order("nazwa")
+      .then(({ data }) => setKontaktyPodw(data || []));
+  }, [id]);
 
   async function zmienStatus(nowyStatus) {
     await supabase.from("zlecenia").update({ status: nowyStatus }).eq("id", id);
@@ -50,8 +88,21 @@ export default function KartaZlecenia() {
     if (!error) router.push(`/wyceny/${data.id}`);
   }
 
+  async function dodajPodwykonawce(e) {
+    e.preventDefault();
+    if (!wybranyPodw) return;
+    const { data, error } = await supabase.from("zlecenie_podwykonawcy")
+      .insert({ zlecenie_id: id, podwykonawca_id: wybranyPodw })
+      .select().single();
+    if (!error) router.push(`/podwykonawcy/${data.id}`);
+  }
+
   if (ladowanie) return <div className="p-5 text-muted">Ładowanie…</div>;
   if (!zlecenie) return <div className="p-5 text-muted">Nie znaleziono zlecenia.</div>;
+
+  const umowy = przypisania.reduce((s, p) => s + Number(p.stawka || 0), 0);
+  const roznica = robocizna - umowy;
+  const pokazPodsumowanie = przypisania.length > 0 || robocizna > 0;
 
   return (
     <div>
@@ -72,6 +123,15 @@ export default function KartaZlecenia() {
           ))}
         </div>
 
+        <Link href={`/zlecenia/${id}/finanse`}
+          className="flex bg-white rounded-xl2 p-3.5 mb-5 justify-between items-center">
+          <div>
+            <div className="font-semibold text-sm">Koszty i wynik</div>
+            <div className="text-xs text-muted">Plan a rzeczywistość, wpłaty klienta</div>
+          </div>
+          <span className="text-accent text-lg">&rarr;</span>
+        </Link>
+
         <div className="flex justify-between items-center mb-2">
           <div className="text-sm font-semibold">Wyceny</div>
           <button onClick={nowaWycena} className="text-xs bg-accent text-white rounded-lg px-3 py-1.5 font-semibold">
@@ -89,6 +149,71 @@ export default function KartaZlecenia() {
             </div>
           </Link>
         ))}
+
+        <div className="flex justify-between items-center mt-5 mb-2">
+          <div className="text-sm font-semibold">Podwykonawcy</div>
+          <button onClick={() => setPokazDodaj(v => !v)} className="text-xs bg-accent text-white rounded-lg px-3 py-1.5 font-semibold">
+            + Dodaj podwykonawcę
+          </button>
+        </div>
+
+        {pokazDodaj && (
+          <form onSubmit={dodajPodwykonawce} className="bg-white rounded-xl2 p-4 border border-line mb-3">
+            {kontaktyPodw.length === 0 ? (
+              <p className="text-xs text-status-redFg">
+                Brak podwykonawców w bazie. Dodaj kontakt typu „podwykonawca” w zakładce Kontakty.
+              </p>
+            ) : (
+              <>
+                <select value={wybranyPodw} onChange={e => setWybranyPodw(e.target.value)} required
+                  className="w-full border border-line rounded-lg px-3 py-2 mb-3 text-sm bg-white">
+                  <option value="">— wybierz podwykonawcę —</option>
+                  {kontaktyPodw.map(k => <option key={k.id} value={k.id}>{k.nazwa}</option>)}
+                </select>
+                <button type="submit" className="w-full bg-accent text-white rounded-lg py-2.5 text-sm font-semibold">Przypisz do zlecenia</button>
+              </>
+            )}
+          </form>
+        )}
+
+        {przypisania.length === 0 && !pokazDodaj && <div className="text-sm text-muted mb-3">Brak przypisanych podwykonawców.</div>}
+        {przypisania.map(p => (
+          <Link key={p.id} href={`/podwykonawcy/${p.id}`} className="block">
+            <div className="bg-white rounded-xl2 p-3.5 mb-2.5 flex justify-between items-center">
+              <div>
+                <div className="font-semibold text-sm">{p.kontakty?.nazwa || "Kontakt usunięty"}</div>
+                <div className="text-xs text-muted">{p.stawka ? zl(p.stawka) : "kwota nieustalona"}</div>
+              </div>
+              <div className={`text-xs px-2.5 py-1 rounded-full font-semibold ${podwStatusStyl[p.status] || podwStatusStyl.ustalony}`}>
+                {podwStatusNazwa[p.status] || p.status}
+              </div>
+            </div>
+          </Link>
+        ))}
+
+        {pokazPodsumowanie && (
+          <div className="bg-white rounded-xl2 p-4 mt-4">
+            <div className="text-xs text-muted mb-2">ROBOCIZNA: WYCENA A PODWYKONAWCY</div>
+            <div className="flex justify-between text-sm mb-1">
+              <div className="text-muted">Robocizna w wycenie{wersjaRob ? ` (v${wersjaRob})` : ""}</div><div>{zl(robocizna)}</div>
+            </div>
+            <div className="flex justify-between text-sm mb-1">
+              <div className="text-muted">Umowy z podwykonawcami</div><div>{zl(umowy)}</div>
+            </div>
+            <div className={`flex justify-between text-sm font-bold mt-2 ${roznica < 0 ? "text-status-redFg" : "text-status-greenFg"}`}>
+              <div>Różnica</div><div>{zl(roznica)}</div>
+            </div>
+            <div className="flex justify-between text-sm mt-3 pt-3 border-t border-line">
+              <div className="text-muted">Wypłacono podwykonawcom</div><div>{zl(wyplacono)}</div>
+            </div>
+            <div className="flex justify-between text-sm mt-1">
+              <div className="text-muted">Jeszcze do zapłaty</div><div>{zl(umowy - wyplacono)}</div>
+            </div>
+            <p className="text-xs text-muted mt-3">
+              Różnica to robocizna wyceniona klientowi minus umowy z podwykonawcami — zakładamy, że całą robociznę z wyceny wykonują podwykonawcy.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

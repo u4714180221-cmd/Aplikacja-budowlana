@@ -9,6 +9,8 @@ const skroty = [
   { href: "/kalkulator", label: "Kalkulator", d: "M5 3h14v18H5zM8 8h8M8 13h3M14 13h3M8 17h3M14 17h3" },
   { href: "/zamowienia", label: "Zamówienia", d: "M3 7h10v8H3zM13 10h4l4 3v2h-8z" },
   { href: "/kontakty", label: "Kontakty", d: "M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6", circles: true },
+  { href: "/podwykonawcy", label: "Podwykonawcy", d: "M4 17h16M6 17a6 6 0 0112 0M12 6v5" },
+  { href: "/finanse", label: "Finanse", d: "M5 20V10M12 20V4M19 20v-7" },
 ];
 
 const statusStyl = {
@@ -47,7 +49,7 @@ export default function Pulpit() {
           <div className="bg-white rounded-xl2 p-3.5"><div className="text-2xl font-bold">{liczby.zamowienia}</div><div className="text-xs text-muted">Zamówienia do wysłania</div></div>
         </div>
 
-        <div className="grid grid-cols-5 gap-1.5 mb-5">
+        <div className="grid grid-cols-3 gap-y-4 gap-x-1.5 mb-5">
           {skroty.map(s => (
             <Link key={s.href} href={s.href} className="flex flex-col items-center gap-1.5 text-ink">
               <div className="w-13 h-13 rounded-xl2 bg-white flex items-center justify-center text-accent" style={{ width: 52, height: 52 }}>

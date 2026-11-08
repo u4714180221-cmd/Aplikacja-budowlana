@@ -87,8 +87,20 @@ create table zlecenie_podwykonawcy (
   zlecenie_id uuid references zlecenia(id) not null,
   podwykonawca_id uuid references kontakty(id) not null,
   zakres_prac text,
-  stawka numeric(10,2),
+  stawka numeric(10,2),          -- kwota umowna
+  termin_start date,
+  termin_koniec date,
   status text not null default 'ustalony' check (status in ('ustalony', 'w_trakcie', 'odebrany'))
+);
+
+-- WYPŁATY DLA PODWYKONAWCÓW
+create table platnosci_podwykonawcow (
+  id uuid primary key default gen_random_uuid(),
+  przypisanie_id uuid references zlecenie_podwykonawcy(id) on delete cascade not null,
+  kwota numeric(10,2) not null,
+  data date not null default current_date,
+  opis text,
+  utworzono timestamptz default now()
 );
 
 -- Row Level Security: tylko zalogowani użytkownicy firmy mają dostęp (MVP: każdy zalogowany widzi wszystko)
@@ -109,3 +121,31 @@ create policy "zalogowani maja dostep" on wycena_pozycje for all using (auth.rol
 create policy "zalogowani maja dostep" on zamowienia for all using (auth.role() = 'authenticated');
 create policy "zalogowani maja dostep" on zamowienie_pozycje for all using (auth.role() = 'authenticated');
 create policy "zalogowani maja dostep" on zlecenie_podwykonawcy for all using (auth.role() = 'authenticated');
+alter table platnosci_podwykonawcow enable row level security;
+create policy "zalogowani maja dostep" on platnosci_podwykonawcow for all using (auth.role() = 'authenticated');
+
+-- FINANSE (Faza 11)
+create table wydatki (
+  id uuid primary key default gen_random_uuid(),
+  zlecenie_id uuid references zlecenia(id) on delete cascade not null,
+  kategoria text not null check (kategoria in ('material_gotowka', 'sprzet', 'transport', 'robocizna_wlasna', 'inne')),
+  opis text,
+  kwota numeric(10,2) not null,
+  data date not null default current_date,
+  utworzono timestamptz default now()
+);
+
+create table wplaty_klienta (
+  id uuid primary key default gen_random_uuid(),
+  zlecenie_id uuid references zlecenia(id) on delete cascade not null,
+  kwota numeric(10,2) not null,
+  data date not null default current_date,
+  opis text,
+  utworzono timestamptz default now()
+);
+
+alter table wydatki enable row level security;
+alter table wplaty_klienta enable row level security;
+
+create policy "zalogowani maja dostep" on wydatki for all using (auth.role() = 'authenticated');
+create policy "zalogowani maja dostep" on wplaty_klienta for all using (auth.role() = 'authenticated');
