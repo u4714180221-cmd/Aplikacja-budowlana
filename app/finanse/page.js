@@ -24,7 +24,7 @@ export default function Finanse() {
     (async () => {
       const [zlec, wyc, pozW, zam, pozZ, pp, wyd, wpl] = await Promise.all([
         pobierzWszystko("zlecenia", "id, nazwa, status"),
-        pobierzWszystko("wyceny", "id, zlecenie_id, wersja, status, marza_procent"),
+        pobierzWszystko("wyceny", "*"),
         pobierzWszystko("wycena_pozycje", "wycena_id, typ, ilosc, cena_jednostkowa"),
         pobierzWszystko("zamowienia", "id, zlecenie_id, status"),
         pobierzWszystko("zamowienie_pozycje", "zamowienie_id, ilosc, cena_jednostkowa"),
@@ -78,7 +78,7 @@ export default function Finanse() {
     <div>
       <div className="px-5 pt-5 pb-3 bg-white border-b border-line">
         <h1 className="text-2xl font-bold">Finanse</h1>
-        <div className="text-xs text-muted">Wynik wszystkich zleceń · kwoty bez VAT</div>
+        <div className="text-xs text-muted">Wynik wszystkich zleceń · koszty i zysk netto</div>
       </div>
 
       <div className="p-4">
@@ -104,7 +104,7 @@ export default function Finanse() {
           <>
             <div className="bg-white rounded-xl2 p-4 mb-4">
               <div className="text-xs text-muted mb-2">RAZEM ({widoczne.length} {widoczne.length === 1 ? "zlecenie" : "zleceń"})</div>
-              <div className="flex justify-between text-sm mb-1"><div className="text-muted">Wartość zleceń</div><div>{zl(razem.cena)}</div></div>
+              <div className="flex justify-between text-sm mb-1"><div className="text-muted">Wartość zleceń (netto)</div><div>{zl(razem.cena)}</div></div>
               <div className="flex justify-between text-sm mb-1"><div className="text-muted">Koszty dotychczas</div><div>{zl(razem.koszt)}</div></div>
               <div className={`flex justify-between text-base font-bold mt-2 ${razem.zysk < 0 ? "text-status-redFg" : "text-status-greenFg"}`}>
                 <div>Zysk</div><div>{zl(razem.zysk)}</div>
@@ -113,7 +113,7 @@ export default function Finanse() {
                 <div className="text-muted">Wpłacono przez klientów</div><div>{zl(razem.wplacono)}</div>
               </div>
               <div className="flex justify-between text-sm mt-1">
-                <div className="text-muted">Klienci jeszcze winni</div><div>{zl(razem.naleznosc)}</div>
+                <div className="text-muted">Klienci jeszcze winni (brutto)</div><div>{zl(razem.naleznosc)}</div>
               </div>
             </div>
 
@@ -131,7 +131,7 @@ export default function Finanse() {
                     </div>
                     {!f.maWycene && <div className="text-xs text-muted mb-1">Brak wyceny</div>}
                     <div className="grid grid-cols-3 gap-1 text-xs">
-                      <div><div className="text-muted">Cena</div><div>{kw(f.cena)}</div></div>
+                      <div><div className="text-muted">Cena netto</div><div>{kw(f.cena)}</div></div>
                       <div><div className="text-muted">Koszty</div><div>{kw(f.kosztRazem)}</div></div>
                       <div>
                         <div className="text-muted">Zysk</div>

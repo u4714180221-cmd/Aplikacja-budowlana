@@ -7,6 +7,7 @@ import {
   liczFinanse, zuzycieMaterialow, wybierzWycene,
   zl, kw, proc, KATEGORIE_WYDATKOW, nazwaKategorii, STATUS_ZUZYCIA,
 } from "../../../../lib/finanse";
+import { STAWKI_VAT, nazwaWyceny } from "../../../../lib/wyceny";
 
 const dzis = () => new Date().toISOString().slice(0, 10);
 
@@ -45,6 +46,7 @@ export default function FinanseZlecenia() {
   const [wplaty, setWplaty] = useState([]);
   const [ladowanie, setLadowanie] = useState(true);
   const [brakMigracji, setBrakMigracji] = useState(false);
+  const [bladVat, setBladVat] = useState("");
 
   const [wKategoria, setWKategoria] = useState("transport");
   const [wOpis, setWOpis] = useState("");
@@ -123,6 +125,14 @@ export default function FinanseZlecenia() {
     pobierzWplaty();
   }
 
+  async function zmienVat(v) {
+    if (!wycenaId) return;
+    const { error } = await supabase.from("wyceny").update({ stawka_vat: v }).eq("id", wycenaId);
+    if (error) { setBladVat("Nie udało się zapisać stawki VAT. Uruchom w Supabase plik migracja-wyceny.sql."); return; }
+    setBladVat("");
+    setWyceny(l => l.map(w => w.id === wycenaId ? { ...w, stawka_vat: v } : w));
+  }
+
   if (ladowanie) return <div className="p-5 text-muted">Ładowanie…</div>;
   if (!zlecenie) return <div className="p-5 text-muted">Nie znaleziono zlecenia.</div>;
 
@@ -137,7 +147,7 @@ export default function FinanseZlecenia() {
       <div className="px-5 pt-5 pb-3 bg-white border-b border-line">
         <Link href={`/zlecenia/${id}`} className="text-xs text-muted">&larr; {zlecenie.nazwa}</Link>
         <h1 className="text-xl font-bold mt-1">Koszty i wynik</h1>
-        <div className="text-xs text-muted">Wszystkie kwoty bez VAT</div>
+        <div className="text-xs text-muted">Koszty i zysk netto · cena dla klienta: netto, VAT i brutto</div>
       </div>
 
       <div className="p-4">
@@ -147,12 +157,14 @@ export default function FinanseZlecenia() {
           </div>
         )}
 
+        {bladVat && <div className="text-xs rounded-lg p-3 mb-3 bg-status-redBg text-status-redFg">{bladVat}</div>}
+
         {wyceny.length > 1 && (
           <>
             <label className="block text-xs text-muted mb-1">Plan liczony z wyceny</label>
             <select value={wycenaId} onChange={e => setWycenaId(e.target.value)}
               className="w-full border border-line rounded-lg px-3 py-2 mb-4 text-sm bg-white">
-              {wyceny.map(w => <option key={w.id} value={w.id}>Wycena v{w.wersja} ({w.status})</option>)}
+              {wyceny.map(w => <option key={w.id} value={w.id}>{nazwaWyceny(w)} ({w.status})</option>)}
             </select>
           </>
         )}
@@ -165,13 +177,28 @@ export default function FinanseZlecenia() {
         {/* PODSUMOWANIE */}
         <div className="bg-white rounded-xl2 p-4 mb-4">
           <div className="flex justify-between text-sm mb-1">
-            <div className="text-muted">Cena dla klienta</div><div className="font-semibold">{zl(f.cena)}</div>
+            <div className="text-muted">Cena netto dla klienta</div><div className="font-semibold">{zl(f.cena)}</div>
+          </div>
+          <div className="flex justify-between text-sm mb-1 items-center">
+            <div className="flex items-center gap-2 text-muted">
+              <span>VAT</span>
+              {STAWKI_VAT.map(v => (
+                <button key={v} disabled={!wycena} onClick={() => zmienVat(v)}
+                  className={`text-xs px-2.5 py-1 rounded-full font-semibold disabled:opacity-50 ${v === f.vatProc ? "bg-accent text-white" : "bg-bg text-muted"}`}>
+                  {v}%
+                </button>
+              ))}
+            </div>
+            <div>{zl(f.vat)}</div>
+          </div>
+          <div className="flex justify-between text-sm mb-3 pb-3 border-b border-line">
+            <div className="text-muted">Cena brutto dla klienta</div><div className="font-semibold">{zl(f.cenaBrutto)}</div>
           </div>
           <div className="flex justify-between text-sm mb-1">
-            <div className="text-muted">Koszt planowany</div><div>{zl(f.planKoszt)}</div>
+            <div className="text-muted">Koszt planowany (netto)</div><div>{zl(f.planKoszt)}</div>
           </div>
           <div className="flex justify-between text-sm mb-3">
-            <div className="text-muted">Koszty dotychczas</div><div>{zl(f.kosztRazem)}</div>
+            <div className="text-muted">Koszty dotychczas (netto)</div><div>{zl(f.kosztRazem)}</div>
           </div>
           {f.wykorzystanie !== null && (
             <>
@@ -185,7 +212,7 @@ export default function FinanseZlecenia() {
             </>
           )}
           <div className={`flex justify-between text-base font-bold pt-3 border-t border-line ${f.zysk < 0 ? "text-status-redFg" : "text-status-greenFg"}`}>
-            <div>Zysk (cena − dotychczasowe koszty)</div><div>{zl(f.zysk)}</div>
+            <div>Zysk netto (cena netto − koszty)</div><div>{zl(f.zysk)}</div>
           </div>
           <p className="text-xs text-muted mt-2">
             Przy zleceniu w toku zysk rośnie wraz z brakiem kolejnych kosztów — traktuj go jako ostateczny dopiero po poniesieniu wszystkich wydatków. Planowany zysk z wyceny: {zl(f.planZysk)}.
@@ -193,7 +220,7 @@ export default function FinanseZlecenia() {
         </div>
 
         {/* PLAN VS RZECZYWISTOŚĆ */}
-        <div className="text-xs text-muted mb-1.5">PLAN A RZECZYWISTOŚĆ (zł)</div>
+        <div className="text-xs text-muted mb-1.5">PLAN A RZECZYWISTOŚĆ (zł netto)</div>
         <div className="bg-white rounded-xl2 p-4 mb-2">
           <div className="grid grid-cols-4 gap-1 text-[11px] text-muted pb-1 border-b border-line">
             <div></div><div className="text-right">Plan</div><div className="text-right">Rzeczywiste</div><div className="text-right">Różnica</div>
@@ -244,7 +271,7 @@ export default function FinanseZlecenia() {
         {/* WPŁATY KLIENTA */}
         <div className="text-xs text-muted mb-1.5">ROZLICZENIE Z KLIENTEM</div>
         <div className="bg-white rounded-xl2 p-4 mb-3">
-          <div className="flex justify-between text-sm mb-1"><div className="text-muted">Cena dla klienta</div><div>{zl(f.cena)}</div></div>
+          <div className="flex justify-between text-sm mb-1"><div className="text-muted">Cena brutto dla klienta (VAT {f.vatProc}%)</div><div>{zl(f.cenaBrutto)}</div></div>
           <div className="flex justify-between text-sm mb-1"><div className="text-muted">Wpłacono przez klienta</div><div>{zl(f.wplacono)}</div></div>
           <div className={`flex justify-between text-base font-bold mt-2 ${f.naleznosc < 0 ? "text-status-redFg" : ""}`}>
             <div>{f.naleznosc < 0 ? "Nadpłata" : "Do zapłaty przez klienta"}</div><div>{zl(Math.abs(f.naleznosc))}</div>
@@ -259,10 +286,11 @@ export default function FinanseZlecenia() {
             <button onClick={() => usunWplate(p.id)} className="text-status-redFg text-xs">Usuń</button>
           </div>
         ))}
+        <p className="text-xs text-muted mb-2">Wpłaty wpisuj w kwotach brutto (z VAT), tak jak płaci klient.</p>
         <form onSubmit={dodajWplate} className="bg-white rounded-xl2 p-4 border border-line mt-3 mb-6">
           <div className="text-xs text-muted mb-2">Zapisz wpłatę od klienta</div>
           <div className="grid grid-cols-2 gap-2 mb-2">
-            <input value={pKwota} onChange={e => setPKwota(e.target.value)} type="number" step="0.01" placeholder="Kwota (zł)" required
+            <input value={pKwota} onChange={e => setPKwota(e.target.value)} type="number" step="0.01" placeholder="Kwota brutto (zł)" required
               className="border border-line rounded-lg px-2 py-2 text-sm" />
             <input value={pData} onChange={e => setPData(e.target.value)} type="date"
               className="border border-line rounded-lg px-2 py-2 text-sm" />
@@ -294,7 +322,7 @@ export default function FinanseZlecenia() {
             {KATEGORIE_WYDATKOW.map(k => <option key={k.id} value={k.id}>{k.nazwa}</option>)}
           </select>
           <div className="grid grid-cols-2 gap-2 mb-2">
-            <input value={wKwota} onChange={e => setWKwota(e.target.value)} type="number" step="0.01" placeholder="Kwota (zł)" required
+            <input value={wKwota} onChange={e => setWKwota(e.target.value)} type="number" step="0.01" placeholder="Kwota netto (zł)" required
               className="border border-line rounded-lg px-2 py-2 text-sm" />
             <input value={wData} onChange={e => setWData(e.target.value)} type="date"
               className="border border-line rounded-lg px-2 py-2 text-sm" />

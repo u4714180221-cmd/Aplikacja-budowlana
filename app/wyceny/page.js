@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabaseClient";
+import { nazwaWyceny } from "../../lib/wyceny";
 
 const statusStyl = {
   szkic: "bg-status-grayBg text-status-grayFg",
@@ -35,7 +36,7 @@ export default function Wyceny() {
           <Link key={w.id} href={`/wyceny/${w.id}`} className="block">
             <div className="bg-white rounded-xl2 p-3.5 mb-2.5 flex justify-between items-center">
               <div>
-                <div className="font-semibold text-sm">{w.zlecenia?.nazwa || "Zlecenie usunięte"} — v{w.wersja}</div>
+                <div className="font-semibold text-sm">{w.zlecenia?.nazwa || "Zlecenie usunięte"} — {nazwaWyceny(w)}</div>
                 <div className="text-xs text-muted">{w.zlecenia?.adres || "—"}</div>
               </div>
               <div className={`text-xs px-2.5 py-1 rounded-full font-semibold ${statusStyl[w.status] || statusStyl.szkic}`}>

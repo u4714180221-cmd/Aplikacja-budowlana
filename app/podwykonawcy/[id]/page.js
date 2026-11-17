@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../../../lib/supabaseClient";
+import { nazwaWyceny } from "../../../lib/wyceny";
 
 const STATUSY = [
   { id: "ustalony", nazwa: "Ustalony" },
@@ -66,7 +67,7 @@ export default function KartaPodwykonawcy() {
       setWykonawca(k);
       const { data: z } = await supabase.from("zlecenia").select("id, nazwa, adres").eq("id", p.zlecenie_id).single();
       setZlecenie(z);
-      const { data: w } = await supabase.from("wyceny").select("id, wersja").eq("zlecenie_id", p.zlecenie_id).order("wersja", { ascending: false });
+      const { data: w } = await supabase.from("wyceny").select("*").eq("zlecenie_id", p.zlecenie_id).order("wersja", { ascending: false });
       setWyceny(w || []);
       await pobierzPlatnosci();
     }
@@ -218,7 +219,7 @@ export default function KartaPodwykonawcy() {
           <select value={wycenaId} onChange={e => wczytajPozycje(e.target.value)}
             className="w-full border border-line rounded-lg px-3 py-2 mb-2 text-sm bg-white">
             <option value="">— wybierz wycenę —</option>
-            {wyceny.map(w => <option key={w.id} value={w.id}>Wycena v{w.wersja}</option>)}
+            {wyceny.map(w => <option key={w.id} value={w.id}>{nazwaWyceny(w)}</option>)}
           </select>
           {wycenaId && (
             <>

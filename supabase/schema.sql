@@ -44,6 +44,8 @@ create table wyceny (
   zlecenie_id uuid references zlecenia(id) not null,
   wersja int not null default 1,
   marza_procent numeric(5,2) default 15,
+  nazwa text,                       -- własna nazwa wyceny (puste = "Wycena vN")
+  stawka_vat smallint not null default 23 check (stawka_vat in (8, 23)),
   status text not null default 'szkic' check (status in ('szkic', 'wyslana', 'zaakceptowana', 'odrzucona')),
   utworzono timestamptz default now()
 );

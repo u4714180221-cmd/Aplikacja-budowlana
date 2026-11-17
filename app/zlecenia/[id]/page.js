@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../../../lib/supabaseClient";
+import { nazwaWyceny } from "../../../lib/wyceny";
 
 const statusStyl = {
   szkic: "bg-status-grayBg text-status-grayFg",
@@ -43,6 +44,8 @@ export default function KartaZlecenia() {
   const [robocizna, setRobocizna] = useState(0);
   const [wersjaRob, setWersjaRob] = useState(null);
   const [wyplacono, setWyplacono] = useState(0);
+  const [blad, setBlad] = useState("");
+  const [usuwanie, setUsuwanie] = useState(false);
 
   async function pobierz() {
     const { data: z } = await supabase.from("zlecenia").select("*").eq("id", id).single();
@@ -97,6 +100,40 @@ export default function KartaZlecenia() {
     if (!error) router.push(`/podwykonawcy/${data.id}`);
   }
 
+  async function usunZlecenie() {
+    const tekst = `Usunąć zlecenie „${zlecenie.nazwa}” razem z wycenami, zamówieniami, podwykonawcami, wydatkami i wpłatami klienta?\n\nTego nie można cofnąć. Jeśli zlecenie ma tylko zniknąć z listy aktywnych, ustaw status „zakończone” zamiast je usuwać.`;
+    if (!window.confirm(tekst)) return;
+    setUsuwanie(true);
+    setBlad("");
+    // Usuwamy od najgłębszych danych do samego zlecenia. Kroki opcjonalne dotyczą tabel,
+    // które mogą nie istnieć, jeśli nie uruchomiono jeszcze odpowiedniej aktualizacji bazy.
+    const krok = async (opis, zapytanie, opcjonalny = false) => {
+      const { error } = await zapytanie;
+      if (error && !opcjonalny) throw new Error(`${opis}: ${error.message}`);
+    };
+    try {
+      const wy = (await supabase.from("wyceny").select("id").eq("zlecenie_id", id)).data || [];
+      if (wy.length) await krok("pozycje wycen", supabase.from("wycena_pozycje").delete().in("wycena_id", wy.map(x => x.id)));
+      await krok("wyceny", supabase.from("wyceny").delete().eq("zlecenie_id", id));
+
+      const zm = (await supabase.from("zamowienia").select("id").eq("zlecenie_id", id)).data || [];
+      if (zm.length) await krok("pozycje zamówień", supabase.from("zamowienie_pozycje").delete().in("zamowienie_id", zm.map(x => x.id)));
+      await krok("zamówienia", supabase.from("zamowienia").delete().eq("zlecenie_id", id));
+
+      const pw = (await supabase.from("zlecenie_podwykonawcy").select("id").eq("zlecenie_id", id)).data || [];
+      if (pw.length) await krok("wypłaty podwykonawców", supabase.from("platnosci_podwykonawcow").delete().in("przypisanie_id", pw.map(x => x.id)), true);
+      await krok("podwykonawcy", supabase.from("zlecenie_podwykonawcy").delete().eq("zlecenie_id", id));
+
+      await krok("wydatki", supabase.from("wydatki").delete().eq("zlecenie_id", id), true);
+      await krok("wpłaty klienta", supabase.from("wplaty_klienta").delete().eq("zlecenie_id", id), true);
+      await krok("zlecenie", supabase.from("zlecenia").delete().eq("id", id));
+      router.push("/zlecenia");
+    } catch (e) {
+      setBlad(`Nie udało się usunąć zlecenia (${e.message}). Część danych mogła już zostać usunięta — spróbuj ponownie.`);
+      setUsuwanie(false);
+    }
+  }
+
   if (ladowanie) return <div className="p-5 text-muted">Ładowanie…</div>;
   if (!zlecenie) return <div className="p-5 text-muted">Nie znaleziono zlecenia.</div>;
 
@@ -113,6 +150,7 @@ export default function KartaZlecenia() {
       </div>
 
       <div className="p-4">
+        {blad && <div className="text-xs rounded-lg p-3 mb-3 bg-status-redBg text-status-redFg">{blad}</div>}
         <div className="text-xs text-muted mb-2">STATUS</div>
         <div className="flex flex-wrap gap-2 mb-5">
           {statusyLista.map(s => (
@@ -142,7 +180,7 @@ export default function KartaZlecenia() {
         {wyceny.map(w => (
           <Link key={w.id} href={`/wyceny/${w.id}`} className="block">
             <div className="bg-white rounded-xl2 p-3.5 mb-2.5 flex justify-between items-center">
-              <div className="font-semibold text-sm">Wycena v{w.wersja}</div>
+              <div className="font-semibold text-sm">{nazwaWyceny(w)}</div>
               <div className={`text-xs px-2.5 py-1 rounded-full font-semibold ${wycenaStatusStyl[w.status] || wycenaStatusStyl.szkic}`}>
                 {w.status}
               </div>
@@ -214,6 +252,11 @@ export default function KartaZlecenia() {
             </p>
           </div>
         )}
+
+        <button onClick={usunZlecenie} disabled={usuwanie}
+          className="w-full text-status-redFg text-xs py-2 mt-6 disabled:opacity-50">
+          {usuwanie ? "Usuwanie…" : "Usuń zlecenie"}
+        </button>
       </div>
     </div>
   );

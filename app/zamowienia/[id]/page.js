@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../../../lib/supabaseClient";
+import { nazwaWyceny } from "../../../lib/wyceny";
 
 const statusyLista = ["szkic", "wyslane", "potwierdzone", "dostarczone"];
 const statusStyl = {
@@ -40,7 +41,7 @@ export default function KartaZamowienia() {
       setDostawca(d);
       const { data: zl } = await supabase.from("zlecenia").select("id, nazwa").eq("id", z.zlecenie_id).single();
       setZlecenie(zl);
-      const { data: w } = await supabase.from("wyceny").select("id, wersja").eq("zlecenie_id", z.zlecenie_id).order("wersja", { ascending: false });
+      const { data: w } = await supabase.from("wyceny").select("*").eq("zlecenie_id", z.zlecenie_id).order("wersja", { ascending: false });
       setWyceny(w || []);
     }
     const { data: p } = await supabase.from("zamowienie_pozycje").select("*").eq("zamowienie_id", id);
@@ -161,7 +162,7 @@ export default function KartaZamowienia() {
             <select value={wycenaId} onChange={e => wczytajPozycjeWyceny(e.target.value)}
               className="w-full border border-line rounded-lg px-3 py-2 mb-3 text-sm bg-white">
               <option value="">— wybierz —</option>
-              {wyceny.map(w => <option key={w.id} value={w.id}>Wycena v{w.wersja}</option>)}
+              {wyceny.map(w => <option key={w.id} value={w.id}>{nazwaWyceny(w)}</option>)}
             </select>
             {pozycjeWyceny.length === 0 && wycenaId && <p className="text-xs text-muted mb-2">Brak pozycji materiałowych w tej wycenie.</p>}
             {pozycjeWyceny.map(p => (
